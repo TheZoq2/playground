@@ -3,12 +3,40 @@ import * as child_process from 'node:child_process';
 import * as esbuild from 'esbuild';
 import metaUrlPlugin from '@chialab/esbuild-plugin-meta-url';
 
+import * as path from 'path'
+import * as fs from 'fs'
+
 const gitCommit = child_process.execSync('git rev-parse HEAD', { encoding: 'utf-8' }).replace(/\n$/, '');
+
+let wasmPlugin = {
+  name: 'wasm',
+  setup(build) {
+    // Resolve ".wasm" files to a path with a namespace
+    build.onResolve({ filter: /\.wasm$/ }, args => {
+      if (args.resolveDir === '') {
+        return // Ignore unresolvable paths
+      }
+      return {
+        path: path.isAbsolute(args.path) ? args.path : path.join(args.resolveDir, args.path),
+          namespace: 'wasm-binary',
+      }
+    })
+
+    // Virtual modules in the "wasm-binary" namespace contain the
+    // actual bytes of the WebAssembly file. This uses esbuild's
+    // built-in "binary" loader instead of manually embedding the
+    // binary data inside JavaScript code ourselves.
+    build.onLoad({ filter: /.*/, namespace: 'wasm-binary' }, async (args) => ({
+      contents: await fs.promises.readFile(args.path),
+      loader: 'binary',
+    }))
+  },
+}
 
 const mode = (process.argv[2] ?? 'build');
 const options = {
     logLevel: 'info',
-    plugins: [metaUrlPlugin()],
+    plugins: [metaUrlPlugin(), wasmPlugin],
     bundle: true,
     loader: {
         '.html': 'copy',
@@ -17,13 +45,10 @@ const options = {
         '.woff': 'file',
         '.woff2': 'file',
         '.json': 'file',
-        '.wasm': 'file',
-        '.asm.wasm': 'copy',
         '.zip': 'file',
     },
     external: [
         'fs/promises', // @yowasp/yosys
-        'node-fetch', // pyodide
     ],
     define: {
         'globalThis.GIT_COMMIT': `"${mode === 'minify' ? gitCommit : 'HEAD'}"`,
@@ -39,7 +64,6 @@ const options = {
         'app': './src/app.tsx',
         'app.worker': './src/worker.ts',
         'editor.worker': 'monaco-editor/esm/vs/editor/editor.worker.js',
-        'pyodide.asm': 'pyodide/pyodide.asm.wasm',
     },
 };
 

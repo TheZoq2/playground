@@ -32,8 +32,8 @@
     "d3-wave": "^1.1.5",
     "esbuild": "^0.20.0",
     "monaco-editor": "^0.46.0",
-    "pyodide": "^0.25.0",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react-dom": "^18.0.0",
+    "spade": "file:./spade/spade-compiler/pkg"
   }
 }
