@@ -28,6 +28,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import QuestionMarkIcon from '@mui/icons-material/QuestionMark'
 
 import { runSpade, } from '@spade-lang/spade'
+import { runSwim, runSwimPrepare } from '@spade-lang/swim'
 import { RunOptions, Tree, runYosys, } from '@yowasp/yosys'
 import { runNextpnrEcp5, runEcppack } from '@yowasp/nextpnr-ecp5'
 import { runOpenFPGALoader } from 'https://cdn.jsdelivr.net/npm/@yowasp/openfpgaloader/gen/bundle.js'
@@ -131,9 +132,14 @@ function AppContent() {
     ?? localStorage.getItem('amaranth-playground.source')
     ?? data.demoCode));
   useEffect(() => localStorage.setItem('amaranth-playground.source', sourceEditorState.text), [sourceEditorState]);
+
+  const [tomlEditorState, setTomlEditorState] = useState(new EditorState(
+    query?.s
+    ?? localStorage.getItem('amaranth-playground.toml')
+    ?? data.demoToml));
+  useEffect(() => localStorage.setItem('amaranth-playground.toml', tomlEditorState.text), [tomlEditorState]);
+
   const [commandOutput, setCommandOutput] = useState<string | null>(null);
-  const [pythonOutput, setPythonOutput] = useState<TerminalChunk[] | null>(null);
-  const [pythonOutputWasNull, setPythonOutputWasNull] = useState(true);
   const [productsOutOfDate, setProductsOutOfDate] = useState(false);
   const [verilogProduct, setVerilogProduct] = useState<string | null>(null);
   const [backendOutput, setBackendOutput] = useState<string | null>(null);
@@ -148,7 +154,10 @@ function AppContent() {
 
     setCommandOutput(null)
 
-    let files = { "playground.spade": sourceEditorState.text }
+    let files = {
+      "src": {"playground.spade": sourceEditorState.text},
+      "swim.toml": tomlEditorState.text
+    }
 
     for (const cmd of commands) {
       setRunning(true);
@@ -179,17 +188,34 @@ function AppContent() {
     setRunning(false)
   }
 
-  const spadeCommand = new Command(
-    runSpade,
-    ["playground.spade", "-o", "build/spade.sv", "--no-color"],
-    new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
-  );
+  const swimCommands = [
+    new Command(
+      runSwimPrepare,
+      [],
+      null
+    ),
+    new Command(
+      runSwim,
+      ["build"],
+      null
+    )
+  ]
 
-  const yosysCommand = new Command(
-    runYosys,
-    ["-p", "read_verilog -sv build/spade.sv; synth_ecp5 -top top -json hardware.json"],
-    new Product(["hardware.json"], "hardware-json", setHardwareJson)
-  );
+  const spadeCommands = swimCommands.concat([
+    new Command(
+      runSpade,
+      ["--command-file", "build/commands.json", "-o", "build/spade.sv", "dummy_file", "--no-color"],
+      new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
+    )
+  ]);
+
+  const yosysCommands = spadeCommands.concat([
+    new Command(
+      runYosys,
+      ["-p", "read_verilog -sv build/spade.sv; synth_ecp5 -top top -json hardware.json"],
+      new Product(["hardware.json"], "hardware-json", setHardwareJson)
+    )
+  ]);
 
   // async function pnr() {
   //   if (runningPnr) {
@@ -267,7 +293,7 @@ function AppContent() {
     }),
     tabAndPanel({
       key: 'amaranth-source',
-      title: 'Spade Source',
+      title: 'playground.spade',
       content: <Editor
         padding={{ top: 10, bottom: 10 }}
         language='rust'
@@ -281,9 +307,20 @@ function AppContent() {
             keybindings: [
               monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
             ],
-            run: () => runCommands([spadeCommand]),
+            run: () => runCommands(spadeCommands),
           }
         ]}
+      />
+    }),
+    tabAndPanel({
+      key: 'toml-source',
+      title: 'swim.toml',
+      content: <Editor
+        padding={{ top: 10, bottom: 10 }}
+        language='rust'
+        state={tomlEditorState}
+        setState={setTomlEditorState}
+        focus
       />
     }),
     tabAndPanel({
@@ -301,24 +338,6 @@ function AppContent() {
     prevSourceCode.current = sourceEditorState.text;
   }, [sourceEditorState]);
 
-  if (pythonOutput !== null)
-    tabsWithPanels.push(tabAndPanel({
-      key: 'python-output',
-      title: 'Python Output',
-      content:
-        <Box
-          className='terminal-output'
-          sx={{ paddingX: 2, paddingY: 1 }}
-        >{TerminalOutput('python-output', pythonOutput)}</Box>
-    }));
-
-  useEffect(() => {
-    // Open tab if we're running code for the first time, since it may not be clear that anything
-    // has happened otherwise.
-    if (pythonOutput !== null && pythonOutputWasNull)
-      setActiveTab('python-output');
-    setPythonOutputWasNull(pythonOutput === null);
-  }, [pythonOutput]);
 
 
   function maybeEditorTab(product: string | null, key: string, title: string, language: string) {
@@ -373,7 +392,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={running}
-          onClick={() => runCommands([spadeCommand])}
+          onClick={() => runCommands(spadeCommands)}
         >
           Run
         </Button>
@@ -385,7 +404,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={synthesizing}
-          onClick={() => runCommands([spadeCommand, yosysCommand])}
+          onClick={() => runCommands(yosysCommands)}
         >
           Synthesize
         </Button>
