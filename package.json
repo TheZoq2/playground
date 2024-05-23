@@ -29,11 +29,13 @@
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@yowasp/yosys": "^0.39.37-dev.676",
+    "@yowasp/nextpnr-ecp5": "^0.7.187-dev.514",
+    "@yowasp/openfpgaloader": "^0.3.1-920.21",
     "d3-wave": "^1.1.5",
     "esbuild": "^0.20.0",
     "monaco-editor": "^0.46.0",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
-    "spade": "file:./spade/spade-compiler/pkg"
+    "@spade-lang/spade": "../yowasp/npmjs/dist/spade-lang-spade-0.9.0-dev.ed24c9.tgz"
   }
 }
