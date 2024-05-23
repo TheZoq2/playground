@@ -28,7 +28,7 @@ import LightModeIcon from '@mui/icons-material/LightMode';
 import QuestionMarkIcon from '@mui/icons-material/QuestionMark'
 
 import { runSpade, } from '@spade-lang/spade'
-import { runYosys, } from '@yowasp/yosys'
+import { RunOptions, Tree, runYosys, } from '@yowasp/yosys'
 import { runNextpnrEcp5, runEcppack } from '@yowasp/nextpnr-ecp5'
 import { runOpenFPGALoader } from 'https://cdn.jsdelivr.net/npm/@yowasp/openfpgaloader/gen/bundle.js'
 
@@ -62,16 +62,55 @@ function TerminalOutput(key: string, output: TerminalChunk[]) {
     <span key={`${key}-${index}`} className={`terminal-${chunk.stream}`}>{chunk.text}</span>);
 }
 
-function handleIostream(s: Uint8Array | null, prev: string | null, setter: React.Dispatch<React.SetStateAction<string | null>>) {
+class Product {
+  constructor (file: string[], tab: string, stateUpdater: React.Dispatch<React.SetStateAction<string | null>>) {
+    this.file = file
+    this.tab = tab
+    this.stateUpdater = stateUpdater
+  }
+  file: string[];
+  tab: string;
+  stateUpdater: React.Dispatch<React.SetStateAction<string | null>>
+}
+
+type Runner = (args: string[], files: Tree, options: RunOptions) => Tree | Promise<Tree>
+
+class Command {
+  constructor(runner: Runner, args: string[], produces: Product | null) {
+    this.runner = runner
+    this.args = args
+    this.produces = produces
+  }
+  runner: Runner
+  args: string[]
+  produces: Product | null
+}
+
+function getFileInTree(tree: Tree, file: string[]) : string  {
+  if (file.length == 0) {
+    throw Error("Failed to get file with no path")
+  } else if (file.length == 1) {
+    const f = tree[file[0]] as string
+    if (f !== null) {
+      return f
+    } else {
+      throw Error(`Failed to get file ${file}, expected string but got ${typeof file}`)
+    }
+  } else {
+    const t = tree[file[0]] as Tree
+    if (t !== null) {
+      return getFileInTree(t, file.slice(1))
+    } else {
+      throw Error(`Failed to get file ${file}, expected dir but got ${typeof file}`)
+    }
+  }
+}
+
+function handleIostream(s: Uint8Array | null, setter: React.Dispatch<React.SetStateAction<string | null>>) {
   let decoder = new TextDecoder()
   if (s !== null) {
     let newNow = decoder.decode(s, { stream: true })
-    if (prev !== null) {
-      setter(prev + newNow)
-    }
-    else {
-      setter(newNow)
-    }
+    setter((prev) => prev === null ? newNow : prev + newNow)
   }
 }
 
@@ -92,7 +131,7 @@ function AppContent() {
     ?? localStorage.getItem('amaranth-playground.source')
     ?? data.demoCode));
   useEffect(() => localStorage.setItem('amaranth-playground.source', sourceEditorState.text), [sourceEditorState]);
-  const [compilerError, setCompilerError] = useState<string | null>(null);
+  const [commandOutput, setCommandOutput] = useState<string | null>(null);
   const [pythonOutput, setPythonOutput] = useState<TerminalChunk[] | null>(null);
   const [pythonOutputWasNull, setPythonOutputWasNull] = useState(true);
   const [productsOutOfDate, setProductsOutOfDate] = useState(false);
@@ -103,132 +142,105 @@ function AppContent() {
   const [uploading, setUploading] = useState<Uint8Array | null>(null);
 
 
-  async function runCode() {
+  async function runCommands(commands: Command[]) {
     if (running)
       return;
-    try {
-      setRunning(true);
-      setVerilogProduct(null)
 
+    setCommandOutput(null)
+
+    let files = { "playground.spade": sourceEditorState.text }
+
+    for (const cmd of commands) {
+      setRunning(true);
       setProductsOutOfDate(false);
 
+      const handlers = {
+        stdout: (s) => handleIostream(s, setCommandOutput),
+        stderr: (s) => handleIostream(s, setCommandOutput),
+      }
+
       try {
-        const filesOut = await runSpade(["spade.spade", "-o", "spade.sv"], {"spade.spade": sourceEditorState.text});
-        // let verilog = compile([file])
-        setVerilogProduct(filesOut["spade.sv"])
-        setCompilerError(null)
-        setActiveTab("verilog-product")
-      } catch (e) {
-        setCompilerError(e)
-        setVerilogProduct(null)
-        setActiveTab("compiler-output")
-      }
+        files = await cmd.runner(cmd.args, files, handlers)
 
-    } finally {
-      setRunning(false);
-    }
-  }
-
-  async function synthesize() {
-    if (synthesizing) {
-      return
-    }
-    try {
-      setSynthesizing(true)
-      setHardwareJson(null)
-
-      await runCode()
-
-      setBackendOutput("")
-
-      if (verilogProduct !== null) {
-        setActiveTab("backend-output")
-        let filesOut = await runYosys(
-          ["-p", "read_verilog -sv spade.sv; synth_ecp5 -top top -json hardware.json"],
-          { "spade.sv": verilogProduct },
-          {
-            stdout: (s) => handleIostream(s, backendOutput, setBackendOutput),
-            stderr: (s) => {
-              let decoder = new TextDecoder()
-              if (s !== null) {
-                setBackendOutput(backendOutput + decoder.decode(s))
-              }
-            },
+        if (cmd.produces !== null) {
+          try {
+            cmd.produces.stateUpdater(getFileInTree(files, cmd.produces.file))
+          } catch(e) {
+            setCommandOutput(prev => prev + e)
           }
-        )
-
-        if (filesOut != null) {
-          let outFile = filesOut["hardware.json"]
-          setHardwareJson(outFile as string)
-          setActiveTab("hardware-json")
         }
+      } catch(e) {
+        console.log(e)
+        setActiveTab("command-output")
+        break;
       }
     }
-    finally {
-      setSynthesizing(false)
-    }
+
+    setRunning(false)
   }
 
-  async function pnr() {
-    if (runningPnr) {
-      return
-    }
-    try {
-      setRunningPnr(true)
-      setBitFile(null)
+  const spadeCommand = new Command(
+    runSpade,
+    ["playground.spade", "-o", "build/spade.sv", "--no-color"],
+    new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
+  );
 
-      await synthesize();
+  const yosysCommand = new Command(
+    runYosys,
+    ["-p", "read_verilog -sv build/spade.sv; synth_ecp5 -top top -json hardware.json"],
+    new Product(["hardware.json"], "hardware-json", setHardwareJson)
+  );
 
-      if (hardwareJson !== null) {
-        setActiveTab("backend-output")
-        setBackendOutput(backendOutput + "\nRunning PNR\n")
-        let pnrOut = await runNextpnrEcp5(
-          [
-            "--45k",
-            "--json",
-            "hardware.json",
-            "--lpf",
-            "ulx3s_v20.lpf",
-            "--textcfg",
-            "hardware.config",
-            "--package",
-            "CABGA554"
-          ],
-          { "hardware.json": hardwareJson, "ulx3s_v20.lpf": ecpix5_lpf },
-        )
-        setBackendOutput(backendOutput + "\nRunning ECPpack\n")
+  // async function pnr() {
+  //   if (runningPnr) {
+  //     return
+  //   }
+  //   try {
+  //     setRunningPnr(true)
+  //     setBitFile(null)
 
-        let packOut = await runEcppack(
-          ["hardware.config", "hardware.bit", "--idcode", "0x81112043"],
-          pnrOut,
-        )
+  //     await synthesize();
 
-        if (packOut != null) {
-          let outFile = packOut["hardware.bit"]
-          setBitFile(outFile)
-        }
-      }
-    }
-    finally {
-      setRunningPnr(false)
-    }
-  }
+  //     if (hardwareJson !== null) {
+  //       setActiveTab("backend-output")
+  //       setBackendOutput(backendOutput + "\nRunning PNR\n")
+  //       let pnrOut = await runNextpnrEcp5(
+  //         ,
+  //         { "hardware.json": hardwareJson, "ulx3s_v20.lpf": ecpix5_lpf },
+  //       )
+  //       setBackendOutput(backendOutput + "\nRunning ECPpack\n")
 
-  async function upload() {
-    if (uploading) {
-      return
-    }
-    try {
-      if (bitFile !== null) {
-        await runOpenFPGALoader(["-b", "ecpix5", "hardware.bit"], {"hardware.bit": bitFile})
-      } else{
-        console.log("No bit file generated")
-      }
-    }
-    finally {
-      setUploading(false)
-    }
-  } 
+  //       let packOut = await runEcppack(
+  //         ["hardware.config", "hardware.bit", "--idcode", "0x81112043"],
+  //         pnrOut,
+  //       )
+
+  //       if (packOut != null) {
+  //         let outFile = packOut["hardware.bit"]
+  //         setBitFile(outFile)
+  //       }
+  //     }
+  //   }
+  //   finally {
+  //     setRunningPnr(false)
+  //   }
+  // }
+
+  // async function upload() {
+  //   if (uploading) {
+  //     return
+  //   }
+  //   try {
+  //     if (bitFile !== null) {
+  //       await runOpenFPGALoader(["-b", "ecpix5", "hardware.bit"], {"hardware.bit": bitFile})
+  //     } else{
+  //       console.log("No bit file generated")
+  //     }
+  //   }
+  //   finally {
+  //     setUploading(false)
+  //   }
+  // } 
 
   function tabAndPanel({ key, title, titleStyle = {}, content }) {
     return [
@@ -269,16 +281,16 @@ function AppContent() {
             keybindings: [
               monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
             ],
-            run: runCode,
+            run: () => runCommands([spadeCommand]),
           }
         ]}
       />
     }),
     tabAndPanel({
-      key: 'compiler-output',
-      title: 'Compiler output',
+      key: 'command-output',
+      title: 'Command output',
       content:
-        <pre>{compilerError ? compilerError.replaceAll("\"", "").replaceAll("\\n", "\n") : null}</pre>
+        <pre>{commandOutput}</pre>
     }),
   ];
 
@@ -361,7 +373,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={running}
-          onClick={() => runCode()}
+          onClick={() => runCommands([spadeCommand])}
         >
           Run
         </Button>
@@ -373,7 +385,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={synthesizing}
-          onClick={() => synthesize()}
+          onClick={() => runCommands([spadeCommand, yosysCommand])}
         >
           Synthesize
         </Button>
@@ -385,7 +397,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={runningPnr}
-          onClick={() => pnr()}
+          onClick={() => {console.log("no pnr right now")}}
         >
           PNR
         </Button>
@@ -398,7 +410,7 @@ function AppContent() {
                 variant='outlined'
                 startDecorator={<PlayArrowIcon />}
                 loading={runningPnr}
-                onClick={() => upload()}
+                onClick={() => {console.log("no upload right now")}}
               >
                 Upload
               </Button> : null

@@ -1,7 +1,7 @@
 {
   "name": "amaranth-playground",
   "version": "0.0.0",
-  "description": "Playground for experimenting with and sharing short Amaranth programs on the web",
+  "description": "Playground for experimenting with and sharing short Spade programs on the web",
   "author": "Catherine <whitequark@whitequark.org>",
   "license": "BSD-2-Clause",
   "homepage": "https://github.com/amaranth-lang/playground#readme",
@@ -28,14 +28,16 @@
     "@types/d3": "^7.4.3",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
+    "@yowasp/runtime": "8.0.40",
     "@yowasp/yosys": "^0.39.37-dev.676",
     "@yowasp/nextpnr-ecp5": "^0.7.187-dev.514",
     "@yowasp/openfpgaloader": "^0.3.1-920.21",
+    "@spade-lang/spade": "0.9.0-dev940.733.899bf3-bc3d06",
+    "@spade-lang/swim": "0.8.0-dev.8d69b8-7953c4",
     "d3-wave": "^1.1.5",
     "esbuild": "^0.20.0",
     "monaco-editor": "^0.46.0",
     "react": "^18.0.0",
-    "react-dom": "^18.0.0",
-    "@spade-lang/spade": "../yowasp/npmjs/dist/spade-lang-spade-0.9.0-dev.ed24c9.tgz"
+    "react-dom": "^18.0.0"
   }
 }
