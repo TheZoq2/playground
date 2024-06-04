@@ -40,6 +40,7 @@ import data from './config';
 
 import './app.css';
 import { ecpix5_lpf } from './ulx3s_lpf';
+import { Command, Product } from './command';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -61,30 +62,6 @@ interface TerminalChunk {
 function TerminalOutput(key: string, output: TerminalChunk[]) {
   return output.map((chunk, index) =>
     <span key={`${key}-${index}`} className={`terminal-${chunk.stream}`}>{chunk.text}</span>);
-}
-
-class Product {
-  constructor (file: string[], tab: string, stateUpdater: React.Dispatch<React.SetStateAction<string | null>>) {
-    this.file = file
-    this.tab = tab
-    this.stateUpdater = stateUpdater
-  }
-  file: string[];
-  tab: string;
-  stateUpdater: React.Dispatch<React.SetStateAction<string | null>>
-}
-
-type Runner = (args: string[], files: Tree, options: RunOptions) => Tree | Promise<Tree>
-
-class Command {
-  constructor(runner: Runner, args: string[], produces: Product | null) {
-    this.runner = runner
-    this.args = args
-    this.produces = produces
-  }
-  runner: Runner
-  args: string[]
-  produces: Product | null
 }
 
 function getFileInTree(tree: Tree, file: string[]) : string  {
@@ -139,6 +116,7 @@ function AppContent() {
     ?? data.demoToml));
   useEffect(() => localStorage.setItem('amaranth-playground.toml', tomlEditorState.text), [tomlEditorState]);
 
+  const [swimPrepareCache, setSwimPrepareCache] = useState<[string, Tree] | null>(null);
   const [commandOutput, setCommandOutput] = useState<string | null>(null);
   const [productsOutOfDate, setProductsOutOfDate] = useState(false);
   const [verilogProduct, setVerilogProduct] = useState<string | null>(null);
@@ -190,7 +168,19 @@ function AppContent() {
 
   const swimCommands = [
     new Command(
-      runSwimPrepare,
+      async (args, files, options) => {
+        const toml = tomlEditorState.text
+        let result = null
+        if (swimPrepareCache !== null && toml === swimPrepareCache[0]) {
+          result = swimPrepareCache[1]
+          console.log("Using cache")
+        } else {
+          result = await runSwimPrepare(args, files, options)
+        }
+        console.log(`Setting cache to ${[toml, result]}`)
+        setSwimPrepareCache([toml, result])
+        return result
+      },
       [],
       null
     ),
@@ -217,56 +207,6 @@ function AppContent() {
     )
   ]);
 
-  // async function pnr() {
-  //   if (runningPnr) {
-  //     return
-  //   }
-  //   try {
-  //     setRunningPnr(true)
-  //     setBitFile(null)
-
-  //     await synthesize();
-
-  //     if (hardwareJson !== null) {
-  //       setActiveTab("backend-output")
-  //       setBackendOutput(backendOutput + "\nRunning PNR\n")
-  //       let pnrOut = await runNextpnrEcp5(
-  //         ,
-  //         { "hardware.json": hardwareJson, "ulx3s_v20.lpf": ecpix5_lpf },
-  //       )
-  //       setBackendOutput(backendOutput + "\nRunning ECPpack\n")
-
-  //       let packOut = await runEcppack(
-  //         ["hardware.config", "hardware.bit", "--idcode", "0x81112043"],
-  //         pnrOut,
-  //       )
-
-  //       if (packOut != null) {
-  //         let outFile = packOut["hardware.bit"]
-  //         setBitFile(outFile)
-  //       }
-  //     }
-  //   }
-  //   finally {
-  //     setRunningPnr(false)
-  //   }
-  // }
-
-  // async function upload() {
-  //   if (uploading) {
-  //     return
-  //   }
-  //   try {
-  //     if (bitFile !== null) {
-  //       await runOpenFPGALoader(["-b", "ecpix5", "hardware.bit"], {"hardware.bit": bitFile})
-  //     } else{
-  //       console.log("No bit file generated")
-  //     }
-  //   }
-  //   finally {
-  //     setUploading(false)
-  //   }
-  // } 
 
   function tabAndPanel({ key, title, titleStyle = {}, content }) {
     return [
@@ -394,7 +334,18 @@ function AppContent() {
           loading={running}
           onClick={() => runCommands(spadeCommands)}
         >
-          Run
+          Build
+        </Button>
+
+        <Button
+          size='lg'
+          sx={{ borderRadius: 10 }}
+          variant='outlined'
+          startDecorator={<PlayArrowIcon />}
+          loading={running}
+          onClick={() => runCommands(simulationCommands)}
+        >
+          Simulate
         </Button>
 
 

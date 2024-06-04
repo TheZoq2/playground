@@ -33,7 +33,7 @@
     "@yowasp/nextpnr-ecp5": "^0.7.187-dev.514",
     "@yowasp/openfpgaloader": "^0.3.1-920.21",
     "@spade-lang/spade": "0.9.0-dev943.733.2aa6ac-bc3d06",
-    "@spade-lang/swim": "^0.8.0-dev.8d69b8-7953c4",
+    "@spade-lang/swim": "../swim-yowasp/npmjs",
     "d3-wave": "^1.1.5",
     "esbuild": "^0.20.0",
     "monaco-editor": "^0.46.0",
