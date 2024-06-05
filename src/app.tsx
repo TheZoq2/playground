@@ -2,7 +2,7 @@ import { createRoot } from 'react-dom/client';
 
 import * as React from 'react';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 
 import { CssVarsProvider, useColorScheme } from '@mui/joy/styles';
 import CssBaseline from '@mui/joy/CssBaseline';
@@ -44,6 +44,7 @@ import { Command, Product } from './command';
 import { runVerilator } from './verilator_yowasp';
 import { getFileInTree } from './sim/util';
 import { HDLModuleWASM } from './sim/hdlwasm';
+import { getVGASignals, waitFor } from './vga_util';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -321,16 +322,50 @@ function AppContent() {
     prevSourceCode.current = sourceEditorState.text;
   }, [sourceEditorState]);
 
+  const [counter, setCounter] = useState(0)
+  useLayoutEffect(() => {
+    const animate = () => {
+      setCounter(c => c + 1)
+      requestAnimationFrame(animate)
+    }
+    requestAnimationFrame(animate)
+  })
 
   useEffect(() => {
     const canvas = canvasRef.current
-    if (canvas) {
+    if (canvas && hdlMod) {
       const context = canvas.getContext('2d')
 
       context.fillStyle = "#000000"
       context.fillRect(0, 0, 640, 480)
+      const imageData = context.createImageData(640, 480)
+
+      const data = new Uint8Array(imageData.data.buffer);
+      frameLoop: for (let y = 0; y < 480; y++) {
+        waitFor(hdlMod, () => !getVGASignals(hdlMod).hsync);
+
+        for (let x = 0; x < 640; x++) {
+          const offset = (y * 640 + x) * 4;
+          hdlMod.tick2(1);
+          const { hsync, vsync, r, g, b } = getVGASignals(hdlMod);
+          if (hsync) {
+            break;
+          }
+          if (vsync) {
+            break frameLoop;
+          }
+          data[offset] = r;
+          data[offset + 1] = g;
+          data[offset + 2] = b;
+          data[offset + 3] = 0xff;
+        }
+        waitFor(hdlMod, () => getVGASignals(hdlMod).hsync);
+      }
+      context!.putImageData(imageData, 0, 0);
+      waitFor(hdlMod, () => getVGASignals(hdlMod).vsync);
+      waitFor(hdlMod, () => !getVGASignals(hdlMod).vsync);
     }
-  })
+  }, [counter])
 
 
 
