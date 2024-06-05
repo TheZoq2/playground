@@ -24,6 +24,7 @@ export async function compileVerilator(opts: ICompileOptions, onStdout: (s: stri
   let sourceList: string[] = [];
   FS.mkdir('src');
   for (const [name, source] of Object.entries(opts.sources)) {
+    console.log(`Creating src/${name}`)
     const path = `src/${name}`;
     sourceList.push(path);
     FS.writeFile(path, source);
@@ -44,11 +45,13 @@ export async function compileVerilator(opts: ICompileOptions, onStdout: (s: stri
       opts.topModule,
       ...sourceList,
     ];
+    console.log("Starting verilator")
     verilatorInst.callMain(args);
   } catch (e) {
     console.log(e);
   }
 
+  console.log("Verilator done");
   const xmlParser = new VerilogXMLParser();
   try {
     const xmlContent = FS.readFile(xmlPath, { encoding: 'utf8' });

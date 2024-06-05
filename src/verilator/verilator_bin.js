@@ -166,7 +166,7 @@ var nodePath;
 
 if (ENVIRONMENT_IS_NODE) {
   if (ENVIRONMENT_IS_WORKER) {
-    scriptDirectory = require('path').dirname(scriptDirectory) + '/';
+    // scriptDirectory = require('path').dirname(scriptDirectory) + '/';
   } else {
     scriptDirectory = __dirname + '/';
   }
@@ -175,8 +175,8 @@ if (ENVIRONMENT_IS_NODE) {
 
 
 read_ = function shell_read(filename, binary) {
-  if (!nodeFS) nodeFS = require('fs');
-  if (!nodePath) nodePath = require('path');
+  // if (!nodeFS) nodeFS = require('fs');
+  // if (!nodePath) nodePath = require('path');
   filename = nodePath['normalize'](filename);
   return nodeFS['readFileSync'](filename, binary ? null : 'utf8');
 };
@@ -5563,7 +5563,7 @@ var ASM_CONSTS = {
         var cmdstr = UTF8ToString(command);
         if (!cmdstr.length) return 0; // this is what glibc seems to do (shell works test?)
   
-        var cp = require('child_process');
+        // var cp = require('child_process');
         var ret = cp.spawnSync(cmdstr, [], {shell:true, stdio:'inherit'});
   
         var _W_EXITCODE = function(ret, sig) {

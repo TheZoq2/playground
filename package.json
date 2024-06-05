@@ -18,6 +18,10 @@
     "watch": "node build.mjs watch",
     "serve": "node build.mjs serve"
   },
+  "dependencies": {
+    "binaryen": "^117.0.0",
+    "client-zip": "^1.3.1"
+  },
   "devDependencies": {
     "@chialab/esbuild-plugin-meta-url": "^0.18.0",
     "@emotion/react": "^11.11.3",
@@ -33,7 +37,7 @@
     "@yowasp/nextpnr-ecp5": "^0.7.187-dev.514",
     "@yowasp/openfpgaloader": "^0.3.1-920.21",
     "@spade-lang/spade": "0.9.0-dev943.733.2aa6ac-bc3d06",
-    "@spade-lang/swim": "../swim-yowasp/npmjs",
+    "@spade-lang/swim": "0.8.0-dev234.755.9f5a98-091e50",
     "d3-wave": "^1.1.5",
     "esbuild": "^0.20.0",
     "monaco-editor": "^0.46.0",

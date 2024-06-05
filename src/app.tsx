@@ -41,6 +41,8 @@ import data from './config';
 import './app.css';
 import { ecpix5_lpf } from './ulx3s_lpf';
 import { Command, Product } from './command';
+import { runVerilator } from './verilator_yowasp';
+import { getFileInTree } from './sim/util';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -62,26 +64,6 @@ interface TerminalChunk {
 function TerminalOutput(key: string, output: TerminalChunk[]) {
   return output.map((chunk, index) =>
     <span key={`${key}-${index}`} className={`terminal-${chunk.stream}`}>{chunk.text}</span>);
-}
-
-function getFileInTree(tree: Tree, file: string[]) : string  {
-  if (file.length == 0) {
-    throw Error("Failed to get file with no path")
-  } else if (file.length == 1) {
-    const f = tree[file[0]] as string
-    if (f !== null) {
-      return f
-    } else {
-      throw Error(`Failed to get file ${file}, expected string but got ${typeof file}`)
-    }
-  } else {
-    const t = tree[file[0]] as Tree
-    if (t !== null) {
-      return getFileInTree(t, file.slice(1))
-    } else {
-      throw Error(`Failed to get file ${file}, expected dir but got ${typeof file}`)
-    }
-  }
 }
 
 function handleIostream(s: Uint8Array | null, setter: React.Dispatch<React.SetStateAction<string | null>>) {
@@ -198,6 +180,14 @@ function AppContent() {
       new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
     )
   ]);
+
+  const simulationCommands = spadeCommands.concat([
+    new Command (
+      runVerilator,
+      [],
+      null
+    )
+  ])
 
   const yosysCommands = spadeCommands.concat([
     new Command(
