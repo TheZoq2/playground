@@ -23,6 +23,7 @@ const options = {
     },
     external: [
         'fs/promises', // @yowasp/yosys
+        'module' // This is needed for binaryen, let's hope it works
     ],
     define: {
         'globalThis.GIT_COMMIT': `"${mode === 'minify' ? gitCommit : 'HEAD'}"`,

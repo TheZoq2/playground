@@ -14,11 +14,13 @@ export class Product {
 type Runner = (args: string[], files: Tree, options: RunOptions) => Tree | Promise<Tree>
 
 export class Command {
-  constructor(runner: Runner, args: string[], produces: Product | null) {
+  constructor(name: string, runner: Runner, args: string[], produces: Product | null) {
+    this.name = name
     this.runner = runner
     this.args = args
     this.produces = produces
   }
+  name: string
   runner: Runner
   args: string[]
   produces: Product | null

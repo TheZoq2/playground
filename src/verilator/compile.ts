@@ -37,6 +37,7 @@ export async function compileVerilator(opts: ICompileOptions, onStdout: (s: stri
       '-Wall',
       '-Wno-EOFNEWLINE',
       '-Wno-DECLFILENAME',
+      '-Wno-UNUSED',
       '--x-assign',
       'fast',
       '--debug-check', // for XML output
@@ -45,13 +46,11 @@ export async function compileVerilator(opts: ICompileOptions, onStdout: (s: stri
       opts.topModule,
       ...sourceList,
     ];
-    console.log("Starting verilator")
     verilatorInst.callMain(args);
   } catch (e) {
     console.log(e);
   }
 
-  console.log("Verilator done");
   const xmlParser = new VerilogXMLParser();
   try {
     const xmlContent = FS.readFile(xmlPath, { encoding: 'utf8' });
@@ -59,6 +58,7 @@ export async function compileVerilator(opts: ICompileOptions, onStdout: (s: stri
   } catch (e) {
     console.log(e, e.stack);
   }
+  console.log(xmlParser)
   return {
     output: xmlParser,
   };

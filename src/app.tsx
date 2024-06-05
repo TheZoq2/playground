@@ -43,6 +43,7 @@ import { ecpix5_lpf } from './ulx3s_lpf';
 import { Command, Product } from './command';
 import { runVerilator } from './verilator_yowasp';
 import { getFileInTree } from './sim/util';
+import { HDLModuleWASM } from './sim/hdlwasm';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -66,11 +67,16 @@ function TerminalOutput(key: string, output: TerminalChunk[]) {
     <span key={`${key}-${index}`} className={`terminal-${chunk.stream}`}>{chunk.text}</span>);
 }
 
-function handleIostream(s: Uint8Array | null, setter: React.Dispatch<React.SetStateAction<string | null>>) {
+function handleIostream(s: Uint8Array | string | null, setter: React.Dispatch<React.SetStateAction<string | null>>) {
   let decoder = new TextDecoder()
-  if (s !== null) {
-    let newNow = decoder.decode(s, { stream: true })
-    setter((prev) => prev === null ? newNow : prev + newNow)
+  if (s != null) {
+    if (typeof s === "string") {
+      setter((prev) => prev === null ? s : prev + s)
+    }
+    else {
+      let newNow = decoder.decode(s, { stream: true })
+      setter((prev) => prev === null ? newNow : prev + newNow)
+    }
   }
 }
 
@@ -85,7 +91,8 @@ function AppContent() {
   const [sharingOpen, setSharingOpen] = useState(false);
   const [tutorialDone, setTutorialDone] = useState(localStorage.getItem('amaranth-playground.tutorialDone') !== null);
   useEffect(() => tutorialDone ? localStorage.setItem('amaranth-playground.tutorialDone', '') : void 0, [tutorialDone]);
-  const [activeTab, setActiveTab] = useState(tutorialDone ? 'amaranth-source' : 'tutorial');
+  const [activeLeftTab, setActiveLeftTab] = useState('amaranth-source');
+  const [activeRightTab, setActiveRightTab] = useState('tutorial');
   const [sourceEditorState, setSourceEditorState] = useState(new EditorState(
     query?.s
     ?? localStorage.getItem('amaranth-playground.source')
@@ -98,6 +105,8 @@ function AppContent() {
     ?? data.demoToml));
   useEffect(() => localStorage.setItem('amaranth-playground.toml', tomlEditorState.text), [tomlEditorState]);
 
+  const canvasRef = useRef<HTMLCanvasElement>();
+
   const [swimPrepareCache, setSwimPrepareCache] = useState<[string, Tree] | null>(null);
   const [commandOutput, setCommandOutput] = useState<string | null>(null);
   const [productsOutOfDate, setProductsOutOfDate] = useState(false);
@@ -106,6 +115,7 @@ function AppContent() {
   const [hardwareJson, setHardwareJson] = useState<string | null>(null);
   const [bitFile, setBitFile] = useState<Uint8Array | null>(null);
   const [uploading, setUploading] = useState<Uint8Array | null>(null);
+  const [hdlMod, setHdlMod] = useState<HDLModuleWASM | null>(null);
 
 
   async function runCommands(commands: Command[]) {
@@ -113,6 +123,7 @@ function AppContent() {
       return;
 
     setCommandOutput(null)
+    setActiveRightTab('command-output')
 
     let files = {
       "src": {"playground.spade": sourceEditorState.text},
@@ -128,6 +139,8 @@ function AppContent() {
         stderr: (s) => handleIostream(s, setCommandOutput),
       }
 
+      handlers.stdout(`[Playground] Running ${cmd.name} ${cmd.args}\n`)
+
       try {
         files = await cmd.runner(cmd.args, files, handlers)
 
@@ -140,7 +153,8 @@ function AppContent() {
         }
       } catch(e) {
         console.log(e)
-        setActiveTab("command-output")
+        handlers.stdout(`[Playground] ${cmd.name} exited with error ${e}\n`)
+        setActiveRightTab("command-output")
         break;
       }
     }
@@ -150,23 +164,26 @@ function AppContent() {
 
   const swimCommands = [
     new Command(
+      "swim-prepare",
       async (args, files, options) => {
-        const toml = tomlEditorState.text
-        let result = null
-        if (swimPrepareCache !== null && toml === swimPrepareCache[0]) {
-          result = swimPrepareCache[1]
-          console.log("Using cache")
-        } else {
-          result = await runSwimPrepare(args, files, options)
-        }
-        console.log(`Setting cache to ${[toml, result]}`)
-        setSwimPrepareCache([toml, result])
+        let result = await runSwimPrepare(args, files, options)
+        // const toml = tomlEditorState.text
+        // let result = null
+        // if (swimPrepareCache !== null && toml === swimPrepareCache[0]) {
+        //   result = swimPrepareCache[1]
+        //   console.log("Using cache")
+        // } else {
+        //   let result = await runSwimPrepare(args, files, options)
+        // }
+        // console.log(`Setting cache to ${[toml, result]}`)
+        // setSwimPrepareCache([toml, result])
         return result
       },
       [],
       null
     ),
     new Command(
+      "swim",
       runSwim,
       ["build"],
       null
@@ -175,6 +192,7 @@ function AppContent() {
 
   const spadeCommands = swimCommands.concat([
     new Command(
+      "spade",
       runSpade,
       ["--command-file", "build/commands.json", "-o", "build/spade.sv", "dummy_file", "--no-color"],
       new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
@@ -183,7 +201,30 @@ function AppContent() {
 
   const simulationCommands = spadeCommands.concat([
     new Command (
-      runVerilator,
+      "verilator",
+      async (args, files, options) => {
+        const res = await runVerilator(args, files, options);
+
+        if (res.output) {
+          if (hdlMod) {
+            hdlMod.dispose()
+          }
+          let mod = new HDLModuleWASM(res.output.modules['TOP'], res.output.modules['@CONST-POOL@'])
+          await mod.init()
+          mod.powercycle()
+
+          mod.state.a = 5;
+          mod.state.b = 6;
+          mod.tick2(10)
+          console.log(mod.state.out)
+
+          setHdlMod(mod)
+        } else {
+          console.log("No output from verilator")
+        }
+
+        return files
+      },
       [],
       null
     )
@@ -191,6 +232,7 @@ function AppContent() {
 
   const yosysCommands = spadeCommands.concat([
     new Command(
+      "yosys",
       runYosys,
       ["-p", "read_verilog -sv build/spade.sv; synth_ecp5 -top top -json hardware.json"],
       new Product(["hardware.json"], "hardware-json", setHardwareJson)
@@ -205,7 +247,7 @@ function AppContent() {
     ];
   }
 
-  const tabsWithPanels = [
+  const rightTabsWithPanels = [
     tabAndPanel({
       key: 'tutorial',
       title: <QuestionMarkIcon />,
@@ -221,6 +263,23 @@ function AppContent() {
         </p>
       </Box>
     }),
+    tabAndPanel({
+      key: 'command-output',
+      title: 'Command output',
+      content:
+        <pre style={{overflow: "scroll"}}>{commandOutput}</pre>
+    }),
+    tabAndPanel({
+      key: 'canvas',
+      title: 'VGA/HDMI Output',
+      content:
+        <canvas ref={canvasRef}
+          width = "640px"
+          height = "480px"/>
+    }),
+  ];
+
+  const leftTabsWithPanels = [
     tabAndPanel({
       key: 'amaranth-source',
       title: 'playground.spade',
@@ -247,19 +306,13 @@ function AppContent() {
       title: 'swim.toml',
       content: <Editor
         padding={{ top: 10, bottom: 10 }}
-        language='rust'
+        language='toml'
         state={tomlEditorState}
         setState={setTomlEditorState}
         focus
       />
     }),
-    tabAndPanel({
-      key: 'command-output',
-      title: 'Command output',
-      content:
-        <pre>{commandOutput}</pre>
-    }),
-  ];
+  ]
 
   const prevSourceCode = useRef(sourceEditorState.text);
   useEffect(() => {
@@ -269,10 +322,21 @@ function AppContent() {
   }, [sourceEditorState]);
 
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (canvas) {
+      const context = canvas.getContext('2d')
+
+      context.fillStyle = "#000000"
+      context.fillRect(0, 0, 640, 480)
+    }
+  })
+
+
 
   function maybeEditorTab(product: string | null, key: string, title: string, language: string) {
     if (product !== null)
-      tabsWithPanels.push(tabAndPanel({
+      rightTabsWithPanels.push(tabAndPanel({
         key: key,
         title: title,
         titleStyle: productsOutOfDate ? { textDecoration: 'line-through' } : {},
@@ -399,14 +463,34 @@ function AppContent() {
         </IconButton>
 
       </Box>
-      <Tabs
-        sx={{ height: '100%' }}
-        value={activeTab}
-        onChange={(_event, value) => setActiveTab(value as string)}
-      >
-        <TabList>{tabsWithPanels.map(([tab, _panel]) => tab)}</TabList>
-        {tabsWithPanels.map(([_tab, panel]) => panel)}
-      </Tabs>
+
+      <Box sx={{
+        display: 'flex',
+        flexDirection: 'row',
+        width: '100vw',
+        height: '100vh',
+        padding: 2,
+        gap: 2
+      }}>
+
+        <Tabs
+          sx={{ height: '100%', width: '50%' }}
+          value={activeLeftTab}
+          onChange={(_event, value) => setActiveLeftTab(value as string)}
+        >
+          <TabList>{leftTabsWithPanels.map(([tab, _panel]) => tab)}</TabList>
+          {leftTabsWithPanels.map(([_tab, panel]) => panel)}
+        </Tabs>
+
+        <Tabs
+          sx={{ height: '100%', width: '50%' }}
+          value={activeRightTab}
+          onChange={(_event, value) => setActiveRightTab(value as string)}
+        >
+          <TabList>{rightTabsWithPanels.map(([tab, _panel]) => tab)}</TabList>
+          {rightTabsWithPanels.map(([_tab, panel]) => panel)}
+        </Tabs>
+      </Box>
     </Box>
   </>;
 }
