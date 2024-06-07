@@ -121,7 +121,7 @@ function AppContent() {
   const [hdlMod, setHdlMod] = useState<HDLModuleWASM | null>(null);
 
 
-  async function runCommands(commands: Command[]) {
+  async function runCommands(commands: Command[], onDone?: () => void) {
     if (running)
       return;
 
@@ -168,6 +168,9 @@ function AppContent() {
     }
 
     setRunning(false)
+    if (onDone) {
+      onDone()
+    }
   }
 
   const swimCommands = [
@@ -348,7 +351,7 @@ function AppContent() {
             keybindings: [
               monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
             ],
-            run: () => runCommands(spadeCommands),
+            run: () => runCommands(simulationCommands, () => setActiveRightTab('canvas')),
           }
         ]}
       />
@@ -431,7 +434,7 @@ function AppContent() {
           variant='outlined'
           startDecorator={<PlayArrowIcon />}
           loading={running}
-          onClick={() => runCommands(simulationCommands)}
+          onClick={() => runCommands(simulationCommands, () => setActiveRightTab('canvas'))}
         >
           Simulate
         </Button>
