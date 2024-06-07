@@ -46,6 +46,7 @@ import { runVerilator } from './verilator_yowasp';
 import { getFileInTree } from './sim/util';
 import { HDLModuleWASM } from './sim/hdlwasm';
 import { getVGASignals, waitFor } from './vga_util';
+import { terminal } from './terminal';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -234,91 +235,6 @@ function AppContent() {
   ]);
 
 
-  function tabAndPanel({ key, title, titleStyle = {}, content }) {
-    return [
-      <Tab key={`${key}-tab`} value={key} style={titleStyle}>{title}</Tab>,
-      <TabPanel key={`${key}-tabpanel`} value={key} sx={{ padding: 0 }}>{content}</TabPanel>
-    ];
-  }
-
-  const rightTabsWithPanels = [
-    tabAndPanel({
-      key: 'tutorial',
-      title: <QuestionMarkIcon />,
-      content: <Box sx={{ padding: 2, maxWidth: '80em' }}>
-        <p>
-          Hi there!
-        </p>
-        <p>
-          This is a very experimental Spade playground. It is heavily based on the <Link href="https://amaranth-lang.org/play/">amaranth playground</Link>.
-
-          The source code of the original amaranth playground is is {}
-          <Link href="https://github.com/amaranth-lang/playground">available on GitHub</Link>.
-        </p>
-      </Box>
-    }),
-    tabAndPanel({
-      key: 'command-output',
-      title: 'Command output',
-      content:
-        <div className = 'terminal' style={{overflow: 'scroll'}}>
-          {commandOutput
-            ? commandOutput
-              .split("\n")
-              .map((line) => {
-                // The ansi library strips whitespace for some reason, so we'll need to re-add it
-                return <div><Ansi>{line}</Ansi><br/></div>
-                // return <div><pre>{line}</pre><br/></div>
-              })
-            : []
-          }
-        </div>
-    }),
-    tabAndPanel({
-      key: 'canvas',
-      title: 'VGA/HDMI Output',
-      content:
-        <canvas ref={canvasRef}
-          width = "640px"
-          height = "480px"/>
-    }),
-  ];
-
-  const leftTabsWithPanels = [
-    tabAndPanel({
-      key: 'amaranth-source',
-      title: 'playground.spade',
-      content: <Editor
-        padding={{ top: 10, bottom: 10 }}
-        language='rust'
-        state={sourceEditorState}
-        setState={setSourceEditorState}
-        focus
-        actions={[
-          {
-            id: 'amaranth-playground.run',
-            label: 'Run Code',
-            keybindings: [
-              monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-            ],
-            run: () => runCommands(spadeCommands),
-          }
-        ]}
-      />
-    }),
-    tabAndPanel({
-      key: 'toml-source',
-      title: 'swim.toml',
-      content: <Editor
-        padding={{ top: 10, bottom: 10 }}
-        language='toml'
-        state={tomlEditorState}
-        setState={setTomlEditorState}
-        focus
-      />
-    }),
-  ]
-
   const prevSourceCode = useRef(sourceEditorState.text);
   useEffect(() => {
     if (sourceEditorState.text != prevSourceCode.current)
@@ -375,6 +291,80 @@ function AppContent() {
       waitFor(hdlMod, () => !getVGASignals(hdlMod).vsync);
     }
   }, [counter])
+
+
+  function tabAndPanel({ key, title, titleStyle = {}, content }) {
+    return [
+      <Tab key={`${key}-tab`} value={key} style={titleStyle}>{title}</Tab>,
+      <TabPanel key={`${key}-tabpanel`} value={key} sx={{ padding: 0 }}>{content}</TabPanel>
+    ];
+  }
+
+  const rightTabsWithPanels = [
+    tabAndPanel({
+      key: 'tutorial',
+      title: <QuestionMarkIcon />,
+      content: <Box sx={{ padding: 2, maxWidth: '80em' }}>
+        <p>
+          Hi there!
+        </p>
+        <p>
+          This is a very experimental Spade playground. It is heavily based on the <Link href="https://amaranth-lang.org/play/">amaranth playground</Link>.
+
+          The source code of the original amaranth playground is is {}
+          <Link href="https://github.com/amaranth-lang/playground">available on GitHub</Link>.
+        </p>
+      </Box>
+    }),
+    tabAndPanel({
+      key: 'command-output',
+      title: 'Command output',
+      content: terminal(commandOutput)
+    }),
+    tabAndPanel({
+      key: 'canvas',
+      title: 'VGA/HDMI Output',
+      content:
+        <canvas ref={canvasRef}
+          width = "640px"
+          height = "480px"/>
+    }),
+  ];
+
+  const leftTabsWithPanels = [
+    tabAndPanel({
+      key: 'amaranth-source',
+      title: 'playground.spade',
+      content: <Editor
+        padding={{ top: 10, bottom: 10 }}
+        language='rust'
+        state={sourceEditorState}
+        setState={setSourceEditorState}
+        focus
+        actions={[
+          {
+            id: 'amaranth-playground.run',
+            label: 'Run Code',
+            keybindings: [
+              monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+            ],
+            run: () => runCommands(spadeCommands),
+          }
+        ]}
+      />
+    }),
+    tabAndPanel({
+      key: 'toml-source',
+      title: 'swim.toml',
+      content: <Editor
+        padding={{ top: 10, bottom: 10 }}
+        language='toml'
+        state={tomlEditorState}
+        setState={setTomlEditorState}
+        focus
+      />
+    }),
+  ]
 
 
 
@@ -516,7 +506,7 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'row',
         width: '100vw',
-        height: '100vh',
+        height: "95%",
         padding: 2,
         gap: 2
       }}>

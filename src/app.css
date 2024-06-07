@@ -17,6 +17,16 @@ code {
   white-space: pre;
 }
 
+.terminal {
+}
+
+.terminal-container {
+  display: flex;
+  flex-direction: column-reverse;
+  overflow: scroll;
+  height: 100%;
+}
+
 .terminal-output {
   white-space: pre-wrap;
   font-family: monospace;
