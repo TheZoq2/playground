@@ -1,3 +1,4 @@
+// Based on the Rust grammar from https://github.com/microsoft/monaco-editor/blob/main/src/basic-languages/rust/rust.ts. Original copyright:
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -42,6 +43,7 @@ export const spadeLanguage = <languages.IMonarchLanguage>{
 	tokenPostfix: '.spade',
 	defaultToken: 'invalid',
 	keywords: [
+		'inst',
 		'as',
 		'else',
 		'enum',

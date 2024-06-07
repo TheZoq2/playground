@@ -47,6 +47,7 @@ import { getFileInTree } from './sim/util';
 import { HDLModuleWASM } from './sim/hdlwasm';
 import { getVGASignals, waitFor } from './vga_util';
 import { terminal } from './terminal';
+import { helloText } from './hello_text';
 
 function stealHashQuery() {
   const { hash } = window.location;
@@ -122,6 +123,7 @@ function AppContent() {
 
 
   async function runCommands(commands: Command[], onDone?: () => void) {
+    let failed = false;
     if (running)
       return;
 
@@ -162,13 +164,14 @@ function AppContent() {
         console.log(e)
         handlers.stdout(`[Playground] ${cmd.name} exited with error ${e}\n`)
         setActiveRightTab("command-output")
+        failed = true;
         break;
       }
       handlers.stdout(`[Playground] ${cmd.name} done\n`)
     }
 
     setRunning(false)
-    if (onDone) {
+    if (!failed && onDone) {
       onDone()
     }
   }
@@ -227,15 +230,6 @@ function AppContent() {
       null
     )
   ])
-
-  const yosysCommands = spadeCommands.concat([
-    new Command(
-      "yosys",
-      runYosys,
-      ["-p", "read_verilog -sv build/spade.sv; synth_ecp5 -top top -json hardware.json"],
-      new Product(["hardware.json"], "hardware-json", setHardwareJson)
-    )
-  ]);
 
 
   const prevSourceCode = useRef(sourceEditorState.text);
@@ -307,17 +301,7 @@ function AppContent() {
     tabAndPanel({
       key: 'tutorial',
       title: <QuestionMarkIcon />,
-      content: <Box sx={{ padding: 2, maxWidth: '80em' }}>
-        <p>
-          Hi there!
-        </p>
-        <p>
-          This is a very experimental Spade playground. It is heavily based on the <Link href="https://amaranth-lang.org/play/">amaranth playground</Link>.
-
-          The source code of the original amaranth playground is is {}
-          <Link href="https://github.com/amaranth-lang/playground">available on GitHub</Link>.
-        </p>
-      </Box>
+      content: helloText()
     }),
     tabAndPanel({
       key: 'command-output',
@@ -344,16 +328,6 @@ function AppContent() {
         state={sourceEditorState}
         setState={setSourceEditorState}
         focus
-        actions={[
-          {
-            id: 'amaranth-playground.run',
-            label: 'Run Code',
-            keybindings: [
-              monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-            ],
-            run: () => runCommands(simulationCommands, () => setActiveRightTab('canvas')),
-          }
-        ]}
       />
     }),
     tabAndPanel({
@@ -437,30 +411,6 @@ function AppContent() {
           onClick={() => runCommands(simulationCommands, () => setActiveRightTab('canvas'))}
         >
           Simulate
-        </Button>
-
-
-        <Button
-          size='lg'
-          sx={{ borderRadius: 10 }}
-          variant='outlined'
-          startDecorator={<PlayArrowIcon />}
-          loading={synthesizing}
-          onClick={() => runCommands(yosysCommands)}
-        >
-          Synthesize
-        </Button>
-
-
-        <Button
-          size='lg'
-          sx={{ borderRadius: 10 }}
-          variant='outlined'
-          startDecorator={<PlayArrowIcon />}
-          loading={runningPnr}
-          onClick={() => {console.log("no pnr right now")}}
-        >
-          PNR
         </Button>
 
         {
