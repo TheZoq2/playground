@@ -124,6 +124,10 @@ function AppContent() {
       return;
 
     setCommandOutput(null)
+    if (hdlMod) {
+      hdlMod.dispose()
+    }
+    setHdlMod(null)
     setActiveRightTab('command-output')
 
     let files = {
@@ -470,16 +474,20 @@ function AppContent() {
 
         {/* spacer */} <Box sx={{ flexGrow: 1 }} />
 
-        <Button
-          size='lg'
-          sx={{ borderRadius: 10 }}
-          color='neutral'
-          variant='outlined'
-          endDecorator={<ShareIcon />}
-          onClick={() => setSharingOpen(true)}
-        >
-          Share
-        </Button>
+        {
+          /*
+          <Button
+            size='lg'
+            sx={{ borderRadius: 10 }}
+            color='neutral'
+            variant='outlined'
+            endDecorator={<ShareIcon />}
+            onClick={() => setSharingOpen(true)}
+          >
+            Share
+          </Button>
+          */
+        }
 
         <IconButton
           size='lg'
