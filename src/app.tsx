@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client';
 
 import * as React from 'react';
+import Ansi from "@curvenote/ansi-to-react"
 
 import { useState, useEffect, useRef, useLayoutEffect } from 'react';
 
@@ -260,7 +261,18 @@ function AppContent() {
       key: 'command-output',
       title: 'Command output',
       content:
-        <pre style={{overflow: "scroll"}}>{commandOutput}</pre>
+        <div className = 'terminal' style={{overflow: 'scroll'}}>
+          {commandOutput
+            ? commandOutput
+              .split("\n")
+              .map((line) => {
+                // The ansi library strips whitespace for some reason, so we'll need to re-add it
+                return <div><Ansi>{line}</Ansi><br/></div>
+                // return <div><pre>{line}</pre><br/></div>
+              })
+            : []
+          }
+        </div>
     }),
     tabAndPanel({
       key: 'canvas',

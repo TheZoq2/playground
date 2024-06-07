@@ -65,7 +65,8 @@ self.onmessage = async (event: MessageEvent<HostToWorkerMessage>) => {
               type: "stdoutWrite",
               text: "swim.toml is unchanged using cached dependencies\n"
             });
-            out = prepareCache.value
+            out = files
+            files['build'] = prepareCache.value['build']
           }
           prepareCache.swim_toml = cachedSwimToml;
           prepareCache.value = out

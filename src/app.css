@@ -12,6 +12,11 @@ code {
   padding: 0px 2px;
 }
 
+.terminal code {
+  border: none;
+  white-space: pre;
+}
+
 .terminal-output {
   white-space: pre-wrap;
   font-family: monospace;
