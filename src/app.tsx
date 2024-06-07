@@ -340,7 +340,7 @@ function AppContent() {
       title: 'playground.spade',
       content: <Editor
         padding={{ top: 10, bottom: 10 }}
-        language='rust'
+        language='spade'
         state={sourceEditorState}
         setState={setSourceEditorState}
         focus

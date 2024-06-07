@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Dispatch, SetStateAction, useEffect, useRef } from 'react';
 import * as monaco from 'monaco-editor';
+import { spadeConf, spadeLanguage } from './monaco-spade';
 
 window.MonacoEnvironment = {
 	getWorker: (moduleId, label) =>
@@ -71,6 +72,14 @@ export function Editor({ padding, language, state, setState, focus = false, acti
   }, []);
 
   useEffect(() => {
+    if (!monaco.languages.getLanguages().some(({ id }) => id === 'spade')) {
+      // Register a new language
+      monaco.languages.register({ id: 'spade' })
+      // Set the editing configuration for the language
+      monaco.languages.setLanguageConfiguration('spade', spadeConf)
+      monaco.languages.setMonarchTokensProvider('spade', spadeLanguage)
+    }
+
     monaco.editor.setModelLanguage(modelRef.current!, language ?? 'text');
   }, [language]);
 
