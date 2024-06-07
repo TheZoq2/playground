@@ -40,7 +40,7 @@ import data from './config';
 
 import './app.css';
 import { ecpix5_lpf } from './ulx3s_lpf';
-import { Command, Product } from './command';
+import { Command, Product, asyncRunner } from './command';
 import { runVerilator } from './verilator_yowasp';
 import { getFileInTree } from './sim/util';
 import { HDLModuleWASM } from './sim/hdlwasm';
@@ -158,6 +158,7 @@ function AppContent() {
         setActiveRightTab("command-output")
         break;
       }
+      handlers.stdout(`[Playground] ${cmd.name} done\n`)
     }
 
     setRunning(false)
@@ -166,26 +167,13 @@ function AppContent() {
   const swimCommands = [
     new Command(
       "swim-prepare",
-      async (args, files, options) => {
-        let result = await runSwimPrepare(args, files, options)
-        // const toml = tomlEditorState.text
-        // let result = null
-        // if (swimPrepareCache !== null && toml === swimPrepareCache[0]) {
-        //   result = swimPrepareCache[1]
-        //   console.log("Using cache")
-        // } else {
-        //   let result = await runSwimPrepare(args, files, options)
-        // }
-        // console.log(`Setting cache to ${[toml, result]}`)
-        // setSwimPrepareCache([toml, result])
-        return result
-      },
+      asyncRunner("swimPrepare"),
       [],
       null
     ),
     new Command(
       "swim",
-      runSwim,
+      asyncRunner("swim"),
       ["build"],
       null
     )
@@ -194,7 +182,7 @@ function AppContent() {
   const spadeCommands = swimCommands.concat([
     new Command(
       "spade",
-      runSpade,
+      asyncRunner("spade"),
       ["--command-file", "build/commands.json", "-o", "build/spade.sv", "dummy_file", "--no-color"],
       new Product(["build", "spade.sv"], "verilog-product", setVerilogProduct)
     )
@@ -324,11 +312,16 @@ function AppContent() {
 
   const [counter, setCounter] = useState(0)
   useLayoutEffect(() => {
+    const canvas = canvasRef.current
     const animate = () => {
       setCounter(c => c + 1)
+      if (canvas && hdlMod) {
+        requestAnimationFrame(animate)
+      }
+    }
+    if (canvas && hdlMod) {
       requestAnimationFrame(animate)
     }
-    requestAnimationFrame(animate)
   })
 
   useEffect(() => {
